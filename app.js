@@ -24,8 +24,10 @@ async function connectToDevice() {
         statusDiv.textContent = "接続中...";
         statusDiv.style.color = '#f39c12';
         
+        // すべてのデバイスを許可し、オプションでサービスを指定
         device = await navigator.bluetooth.requestDevice({
-            filters: [{ services: [serviceUuid] }]
+            acceptAllDevices: true,
+            optionalServices: [serviceUuid]
         });
         
         const server = await device.gatt.connect();
@@ -83,7 +85,7 @@ function handleNotifications(event) {
 
         switch (data.event) {
             case 1: // 開始
-                startTime = Date.now() - data.time_ms; // 時間を同期
+                startTime = Date.now() - data.time_ms;
                 isRunning = true;
                 displayTime();
                 console.log("ストップウォッチ開始");
