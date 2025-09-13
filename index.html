@@ -3,31 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 Bluetooth Stopwatch</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Bluetooth ストップウォッチ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        #display {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+        .buttons {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .buttons button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #startButton {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #stopButton {
+            background-color: #f44336;
+            color: white;
+        }
+        #resetButton {
+            background-color: #2196F3;
+            color: white;
+        }
+        #connectButton {
+            background-color: #673AB7;
+            color: white;
+        }
+        #connectionStatus {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #555;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <h1>Bluetooth Stopwatch</h1>
-        <div id="status">切断されています</div>
-        <button id="connect-button">接続</button>
-
-        <div class="stopwatch-display">
-            <span id="display-time">00:00.000</span>
+        <h1>Bluetooth ストップウォッチ</h1>
+        <div id="display">00:00:00.00</div>
+        <div class="buttons">
+            <button id="startButton">スタート</button>
+            <button id="stopButton">ストップ</button>
+            <button id="resetButton">リセット</button>
         </div>
-        
-        <div class="controls">
-            <button id="start-button">Start</button>
-            <button id="stop-button">Stop</button>
-            <button id="reset-button">リセット</button>
-        </div>
-
-        <div class="lap-times-container">
-            <h2>ラップタイム</h2>
-            <ul id="lap-list">
-                </ul>
-        </div>
+        <button id="connectButton">Bluetooth接続</button>
+        <p id="connectionStatus">未接続</p>
     </div>
-    <script src="app.js"></script>
+
+    <script>
+        const display = document.getElementById('display');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const resetButton = document.getElementById('resetButton');
+        const connectButton = document.getElementById('connectButton');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        const SERVICE_UUID = "1b24e5c4-a39c-4d46-92fb-3bbcb2f34a41";
+        const CHARACTERISTIC_UUID = "9d18d524-2a6e-44ce-8724-445575b23e9a";
+
+        let startTime;
+        let elapsedTime = 0;
+        let timerInterval;
+        let isRunning = false;
+        let bluetoothDevice = null;
+
+        function updateDisplay() {
+            const time = new Date(elapsedTime);
+            const minutes = String(time.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(time.getUTCSeconds()).padStart(2, '0');
+            const centiseconds = Math.floor(time.getUTCMilliseconds() / 10).toString().padStart(2, '0');
+            display.textContent = `${minutes}:${seconds}.${centiseconds}`;
+        }
+
+        function startStopwatch() {
+            if (!isRunning) {
+                isRunning = true;
+                startTime = Date.now() - elapsedTime;
+                timerInterval = setInterval(() => {
+                    elapsedTime = Date.now() - startTime;
+                    updateDisplay();
+                }, 10);
+            }
+        }
+
+        function stopStopwatch() {
+            if (isRunning) {
+                isRunning = false;
+                clearInterval(timerInterval);
+            }
+        }
+
+        function onDisconnected(event) {
+            const device = event.target;
+            console.log(`デバイス ${device.name} が切断されました。再接続を試みます...`);
+            connectionStatus.textContent = '切断されました。再接続を試行中...';
+            setTimeout(() => connectToDevice(device), 2000);
+        }
+
+        async function connectToDevice(device) {
+            try {
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+
+                const gattServer = await device.gatt.connect();
+                connectionStatus.textContent = `接続完了: ${device.name || device.id}`;
+                console.log('GATT Server:', gattServer);
+
+                const service = await gattServer.getPrimaryService(SERVICE_UUID);
+                const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                    try {
+                        const value = event.target.value;
+                        const textDecoder = new TextDecoder();
+                        const text = textDecoder.decode(value);
+
+                        let jsonData;
+                        try {
+                            jsonData = JSON.parse(text);
+                        } catch (e) {
+                            console.error('JSON解析エラー:', e);
+                            return;
+                        }
+                        
+                        // 動作をより迅速に反映させるための最適化
+                        if (jsonData.sw === 1 && !isRunning) {
+                            startStopwatch();
+                        } else if (jsonData.sw === 0 && isRunning) {
+                            stopStopwatch();
+                        }
+
+                    } catch (error) {
+                        console.error('キャラクタリスティック値の処理中にエラーが発生しました:', error);
+                    }
+                });
+
+            } catch (error) {
+                console.error('Bluetooth接続エラー:', error);
+                connectionStatus.textContent = `接続失敗: ${error.message}`;
+            }
+        }
+
+        startButton.addEventListener('click', startStopwatch);
+        stopButton.addEventListener('click', stopStopwatch);
+        resetButton.addEventListener('click', () => {
+            stopStopwatch();
+            elapsedTime = 0;
+            updateDisplay();
+        });
+
+        connectButton.addEventListener('click', async () => {
+            connectionStatus.textContent = 'デバイスを検索中...';
+            try {
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: [SERVICE_UUID]
+                });
+
+                if (bluetoothDevice) {
+                    connectionStatus.textContent = `デバイス "${bluetoothDevice.name || bluetoothDevice.id}" を選択しました。接続中...`;
+                    await connectToDevice(bluetoothDevice);
+                } else {
+                    connectionStatus.textContent = 'デバイスが選択されませんでした。';
+                }
+            } catch (error) {
+                console.error('requestDeviceエラー:', error);
+                connectionStatus.textContent = `接続失敗: ${error.message}`;
+            }
+        });
+    </script>
 </body>
 </html>
