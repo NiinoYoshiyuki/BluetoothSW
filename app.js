@@ -20,15 +20,14 @@ let animationFrameId;
 
 // Bluetooth接続関数
 async function connectToDevice() {
-    try {
-        statusDiv.textContent = "接続中...";
-        statusDiv.style.color = '#f39c12';
+   
         
         // すべてのデバイスを許可し、オプションでサービスを指定
-        device = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: [serviceUuid]
-        });
+ try {
+                console.log("デバイスをスキャン中...");
+                device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true // フィルターを外してすべてのデバイスを検出
+                });
         
         const server = await device.gatt.connect();
         const service = await server.getPrimaryService(serviceUuid);
@@ -177,3 +176,4 @@ connectButton.addEventListener('click', connectToDevice);
 startButton.addEventListener('click', () => writeToCharacteristic("start"));
 stopButton.addEventListener('click', () => writeToCharacteristic("stop"));
 resetButton.addEventListener('click', () => writeToCharacteristic("reset"));
+
