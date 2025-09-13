@@ -472,7 +472,7 @@
             try {
                 console.log("デバイスをスキャン中...");
                 device = await navigator.bluetooth.requestDevice({
-                    filters: [{ services: [SERVICE_UUID] }]
+                    acceptAllDevices: true // フィルターを外してすべてのデバイスを検出
                 });
                 
                 console.log(`'${device.name}' に接続中...`);
