@@ -1,6 +1,7 @@
 // ESP32のBLE情報
 const serviceUuid = "1b24e5c4-a39c-4d46-92fb-3bbcb2f34a41";
 const characteristicUuid = "9d18d524-2a6e-44ce-8724-445575b23e9a";
+const deviceName = "esp32_stopwatch";
 
 // UI要素の取得
 const connectButton = document.getElementById('connect-button');
@@ -22,23 +23,29 @@ let animationFrameId;
 async function connectToDevice() {
     try {
         console.log("デバイスをスキャン中...");
-        statusDiv.textContent = "接続中...";
+        statusDiv.textContent = "スキャン中...";
         statusDiv.style.color = '#f39c12';
         
-        // サービスUUIDでフィルタリングして、目的のデバイスのみをリストに表示
+        // デバイス名とサービスUUIDの両方で厳密にフィルタリング
         device = await navigator.bluetooth.requestDevice({
-            filters: [{ services: [serviceUuid] }]
+            filters: [
+                { name: deviceName },
+                { services: [serviceUuid] }
+            ]
         });
         
-        console.log('GATTサーバーに接続を試行中...');
+        console.log(`'${device.name}' に接続を試行中...`);
+        statusDiv.textContent = `'${device.name}'に接続中...`;
+
         const server = await device.gatt.connect();
         
-        console.log('サービスを取得中...');
+        console.log('GATTサーバーに接続成功。サービスを取得中...');
         const service = await server.getPrimaryService(serviceUuid);
         
-        console.log('GATTサーバー接続成功、サービス取得成功');
+        console.log('サービス取得成功。キャラクターリスティックを取得中...');
         characteristic = await service.getCharacteristic(characteristicUuid);
         
+        console.log('キャラクターリスティック取得成功。通知を開始します。');
         await characteristic.startNotifications();
         characteristic.addEventListener('characteristicvaluechanged', handleNotifications);
         
@@ -55,6 +62,15 @@ async function connectToDevice() {
         statusDiv.textContent = "接続に失敗しました ❌";
         statusDiv.style.color = '#e74c3c';
         connectButton.textContent = "再接続";
+    }
+}
+
+// 接続切断関数
+async function disconnectFromDevice() {
+    if (device && device.gatt.connected) {
+        await device.gatt.disconnect();
+        console.log("Webアプリ側から切断しました。");
+        onDisconnected();
     }
 }
 
