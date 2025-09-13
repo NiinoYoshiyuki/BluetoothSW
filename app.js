@@ -25,12 +25,11 @@ async function connectToDevice() {
         statusDiv.textContent = "接続中...";
         statusDiv.style.color = '#f39c12';
         
-        // サービスUUIDでフィルタリング
+        // サービスUUIDでフィルタリングして、目的のデバイスのみをリストに表示
         device = await navigator.bluetooth.requestDevice({
             filters: [{ services: [serviceUuid] }]
         });
         
-        // ログを追加して接続の試行状況を追跡
         console.log('GATTサーバーに接続を試行中...');
         const server = await device.gatt.connect();
         
@@ -183,4 +182,3 @@ connectButton.addEventListener('click', connectToDevice);
 startButton.addEventListener('click', () => writeToCharacteristic("start"));
 stopButton.addEventListener('click', () => writeToCharacteristic("stop"));
 resetButton.addEventListener('click', () => writeToCharacteristic("reset"));
-
